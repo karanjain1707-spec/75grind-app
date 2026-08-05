@@ -28,7 +28,7 @@ Opens at http://localhost:5173
 ## How sharing works
 
 The first person to open the deployed URL triggers the app to create a
-free shared data board (via jsonstorage.net, no signup) and rewrites
+free shared data board (via jsonblob.com, no signup) and rewrites
 the page URL to include `?board=<id>`. **Share that resulting URL**,
 not the bare one, everyone who opens it lands on the same shared
 data. It's saved locally too, so reopening the bare URL on the same
@@ -39,7 +39,7 @@ device still finds it.
 - **UI**: React, Tailwind (via CDN script in `index.html`)
 - **Icons**: lucide-react
 - **Weight chart**: recharts
-- **Shared data**: jsonstorage.net (free, keyless, third-party — not
+- **Shared data**: jsonblob.com (free, keyless, third-party — not
   Anthropic, no uptime guarantee, works well for a friend-group tracker)
 - **Personal/device data** (which profile is "you" on this device):
   browser localStorage

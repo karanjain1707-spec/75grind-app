@@ -1,8 +1,15 @@
 // Replaces Claude's window.storage with a free, keyless JSON backend
-// (jsonstorage.net) for shared data, and localStorage for personal /
+// (jsonblob.com) for shared data, and localStorage for personal /
 // per-device data. No account, no API key of any kind.
+//
+// Previously used jsonstorage.net, but that service started requiring a
+// paid API key to create new boards (existing boards could still be read,
+// but every brand-new deploy/device would fail at the "create" step with a
+// 400 "Create operation requires API key" error). jsonblob.com offers the
+// same anonymous create/read/write shape and was verified working directly
+// against this deployment before switching.
 
-const API = "https://api.jsonstorage.net/v1/json";
+const API = "https://jsonblob.com/api/jsonBlob";
 
 let boardPath = new URLSearchParams(window.location.search).get("board");
 
@@ -27,9 +34,8 @@ async function ensureBoard() {
     body: JSON.stringify({ players: {} }),
   });
   if (!res.ok) throw new Error(`Could not create shared board (status ${res.status})`);
-  const data = await res.json();
-  const uri = data && data.uri ? data.uri : "";
-  const path = uri.split("/v1/json/")[1];
+  const location = res.headers.get("Location") || "";
+  const path = location.split("/").filter(Boolean).pop();
   if (!path) throw new Error("Backend did not return a board id");
   saveBoardPath(path);
   return path;
