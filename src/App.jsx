@@ -504,7 +504,7 @@ function WeekSummary({ days, currentDay }) {
   const moodMeta = MOODS.find((m) => m.key === s.topMood);
   return (
     <div className="mt-5 pt-4 border-t border-slate-800">
-      <div className="text-xs uppercase tracking-widest text-slate-500 mb-2">This week · Day {s.a}\u2013{s.b}</div>
+      <div className="text-xs uppercase tracking-widest text-slate-500 mb-2">This week · Day {s.a}–{s.b}</div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-300">
         <span>{s.workouts} workouts logged</span>
         {s.avgSteps !== null && <span>Avg {s.avgSteps.toLocaleString()} steps</span>}
