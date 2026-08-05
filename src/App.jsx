@@ -210,6 +210,11 @@ export default function App() {
     });
   }
   function restartMine() { updateRoster((r) => { const p = r.players[meId]; if (p) { p.startDate = todayStr(); p.days = {}; } return r; }); }
+  // Lets someone who's already partway through fix their day count after
+  // the fact — e.g. joined the app today but actually started 42 days ago.
+  // Backdating startDate re-derives currentDay/streak/rank automatically,
+  // no separate "which day am I on" field needed.
+  function updateStartDate(newDate) { updateRoster((r) => { const p = r.players[meId]; if (p) p.startDate = newDate; return r; }); }
 
   if (roster === undefined) return <Shell><div className="text-slate-400 animate-pulse">Loading…</div></Shell>;
 
@@ -223,7 +228,7 @@ export default function App() {
   return (
     <Shell>
       <div className="w-full max-w-2xl mx-auto">
-        <Header player={me} onSwitch={switchUser} />
+        <Header player={me} onSwitch={switchUser} onUpdateStart={updateStartDate} />
         {syncError && <p className="text-xs text-amber-400 bg-amber-950/40 border border-amber-900 rounded-lg px-3 py-2 mb-4 text-center">Couldn't reach the shared board just now. Showing your last synced data, taps still save locally and will sync once the connection's back.</p>}
         <MyCard key={me.id} player={me} color={colorFor(myIndex)} onToggle={toggle} onWaterChange={changeWater} onSaveStats={saveStats} onSaveLog={saveLog} busy={busy} />
         <Leaderboard players={players} meId={meId} />
@@ -237,13 +242,33 @@ export default function App() {
   );
 }
 
-function Header({ player, onSwitch }) {
+function Header({ player, onSwitch, onUpdateStart }) {
   const { notStarted, complete, currentDay } = dayInfo(player.startDate);
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(player.startDate);
+
+  if (editing) {
+    return (
+      <div className="flex items-center justify-between mb-6 gap-2 flex-wrap">
+        <Logo small />
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-slate-500 hidden sm:inline">Joined partway in? Set your real start date:</span>
+          <input type="date" value={val} onChange={(e) => setVal(e.target.value)} className="min-w-0 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-amber-400" />
+          <button onClick={() => { onUpdateStart(val); setEditing(false); }} className="text-xs font-semibold text-emerald-400 hover:text-emerald-300">Save</button>
+          <button onClick={() => setEditing(false)} className="text-xs text-slate-500 hover:text-slate-300">Cancel</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center justify-between mb-6">
       <Logo small />
       <div className="flex items-center gap-3">
-        <span className="text-xs uppercase tracking-widest text-slate-500">{notStarted ? `Starts ${player.startDate}` : complete ? "Complete" : `Day ${currentDay} / ${TOTAL}`}</span>
+        <button onClick={() => { setVal(player.startDate); setEditing(true); }} className="text-xs uppercase tracking-widest text-slate-500 hover:text-slate-300 transition flex items-center gap-1" title="Not everyone starts on Day 1 — set your real start date">
+          {notStarted ? `Starts ${player.startDate}` : complete ? "Complete" : `Day ${currentDay} / ${TOTAL}`}
+          <Pencil size={10} />
+        </button>
         <button onClick={onSwitch} className="text-slate-500 hover:text-slate-200 transition flex items-center gap-1 text-xs" title="Switch person"><LogOut size={13} /> {player.name}</button>
       </div>
     </div>
@@ -283,6 +308,7 @@ function Onboarding({ players, onCreate, onClaim, offline }) {
           <label className="block">
             <span className="block text-xs uppercase tracking-widest text-slate-500 mb-1.5">Start date</span>
             <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="w-full min-w-0 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 outline-none focus:border-slate-400 text-base" />
+            <span className="block text-xs text-slate-600 mt-1.5">Already partway through on your own? Pick the date you actually started — you'll land on the right day, with every earlier day open to fill in. You can change this later too.</span>
           </label>
           <label className="block">
             <span className="block text-xs uppercase tracking-widest text-slate-500 mb-1.5">Your bonus habit (optional)</span>
@@ -367,10 +393,12 @@ function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog
   const cleared = clearedCount(days);
   const rank = rankFor(lvl);
   const RankIcon = rank.icon;
-  const today = days[currentDay] || {};
-  const canEdit = !notStarted && !complete;
   const [selectedDay, setSelectedDay] = useState(currentDay);
   useEffect(() => { setSelectedDay(currentDay); }, [currentDay]);
+  // Quick-toggle buttons act on whichever day is selected in the calendar
+  // below, not always "today" — not everyone starts the challenge in sync,
+  // so someone backfilling day 43 can tap straight into day 43's tasks.
+  const sel = days[selectedDay] || {};
 
   const ctx = { cleared, longest: longestStreak(days), perfectWeeks: perfectWeeks(days), lvl, reading: countTask(days, "reading") };
 
@@ -381,13 +409,13 @@ function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog
     prevLevel.current = lvl;
   }, [lvl]);
 
-  const todayComplete = allDone(today);
-  const prevComplete = useRef(todayComplete);
+  const selComplete = allDone(sel);
+  const prevComplete = useRef(selComplete);
   const [celebrate, setCelebrate] = useState(false);
   useEffect(() => {
-    if (todayComplete && !prevComplete.current) { setCelebrate(true); const t = setTimeout(() => setCelebrate(false), 1600); prevComplete.current = todayComplete; return () => clearTimeout(t); }
-    prevComplete.current = todayComplete;
-  }, [todayComplete]);
+    if (selComplete && !prevComplete.current) { setCelebrate(true); const t = setTimeout(() => setCelebrate(false), 1600); prevComplete.current = selComplete; return () => clearTimeout(t); }
+    prevComplete.current = selComplete;
+  }, [selComplete]);
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 mb-5 relative overflow-hidden shadow-2xl shadow-black/40 ring-1 ring-white/5">
@@ -400,7 +428,7 @@ function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog
       )}
       {celebrate && (
         <div className="absolute inset-x-4 top-4 z-10 rounded-xl bg-emerald-500 text-slate-950 px-4 py-2.5 flex items-center gap-2 font-bold text-sm shadow-lg animate-bounce">
-          <Check size={16} /> Day {currentDay} cleared. Streak's alive.
+          <Check size={16} /> Day {selectedDay} cleared{selectedDay === currentDay ? ". Streak's alive." : "."}
         </div>
       )}
       {complete && (
@@ -435,11 +463,13 @@ function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog
         </div>
       </div>
 
-      <div className="text-xs uppercase tracking-widest text-slate-500 mb-2">{complete ? "Challenge over" : notStarted ? `Starts ${player.startDate}` : `Today · Day ${currentDay}`}</div>
+      <div className="text-xs uppercase tracking-widest text-slate-500 mb-2">
+        Day {selectedDay}{selectedDay === currentDay && !notStarted && !complete ? " · Today" : ""}
+      </div>
       <div className="grid grid-cols-2 gap-2 mb-3">
         {tasksFor(player).map((t) => {
           if (t.key === "water") {
-            const ml = today.water || 0;
+            const ml = sel.water || 0;
             const pct = Math.min(100, Math.round((ml / WATER_TARGET_ML) * 100));
             const reached = ml >= WATER_TARGET_ML;
             return (
@@ -452,15 +482,15 @@ function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog
                   <div className={`h-full rounded-full transition-all ${reached ? "bg-slate-950" : color.solid}`} style={{ width: `${pct}%` }} />
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" disabled={!canEdit || busy || ml <= 0} onClick={() => onWaterChange(currentDay, -WATER_STEP_ML)} className="flex-1 rounded-lg py-1 text-xs font-bold bg-black/15 hover:bg-black/25 disabled:opacity-30 transition">−{WATER_STEP_ML}ml</button>
-                  <button type="button" disabled={!canEdit || busy} onClick={() => onWaterChange(currentDay, WATER_STEP_ML)} className="flex-1 rounded-lg py-1 text-xs font-bold bg-black/15 hover:bg-black/25 disabled:opacity-30 transition">+{WATER_STEP_ML}ml</button>
+                  <button type="button" disabled={busy || ml <= 0} onClick={() => onWaterChange(selectedDay, -WATER_STEP_ML)} className="flex-1 rounded-lg py-1 text-xs font-bold bg-black/15 hover:bg-black/25 disabled:opacity-30 transition">−{WATER_STEP_ML}ml</button>
+                  <button type="button" disabled={busy} onClick={() => onWaterChange(selectedDay, WATER_STEP_ML)} className="flex-1 rounded-lg py-1 text-xs font-bold bg-black/15 hover:bg-black/25 disabled:opacity-30 transition">+{WATER_STEP_ML}ml</button>
                 </div>
               </div>
             );
           }
-          const on = today[t.key], Icon = t.icon;
+          const on = sel[t.key], Icon = t.icon;
           return (
-            <button key={t.key} disabled={!canEdit || busy} onClick={() => onToggle(currentDay, t.key)}
+            <button key={t.key} disabled={busy} onClick={() => onToggle(selectedDay, t.key)}
               className={`rounded-xl py-3 px-2 border transition active:scale-95 disabled:opacity-40 disabled:active:scale-100 ${on ? `${color.solid} ${color.border} text-slate-950` : "bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500"}`}>
               <div className="flex items-center justify-center gap-1.5 font-semibold text-sm">{on ? <Check size={16} /> : <Icon size={16} />} {t.label}</div>
             </button>
@@ -476,19 +506,18 @@ function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog
           const missed = !full && !partial && d < currentDay && !notStarted;
           const isToday = d === currentDay && !notStarted && !complete;
           const isSelected = d === selectedDay && !isToday;
-          const clickable = d <= currentDay && !notStarted;
           let cls = "bg-slate-800";
           if (full) cls = color.solid; else if (partial) cls = color.dim; else if (missed) cls = "bg-rose-950";
           return (
-            <button key={d} type="button" disabled={!clickable} onClick={() => setSelectedDay(d)} title={`Day ${d}`}
-              className={`aspect-square rounded-sm p-0 border-0 appearance-none ${cls} ${isToday ? "ring-2 ring-slate-100" : ""} ${isSelected ? `ring-2 ${color.ring}` : ""} ${clickable ? "cursor-pointer hover:opacity-80" : "cursor-default"}`} />
+            <button key={d} type="button" onClick={() => setSelectedDay(d)} title={`Day ${d}`}
+              className={`aspect-square rounded-sm p-0 border-0 appearance-none cursor-pointer hover:opacity-80 ${cls} ${isToday ? "ring-2 ring-slate-100" : ""} ${isSelected ? `ring-2 ${color.ring}` : ""}`} />
           );
         })}
       </div>
-      <p className="text-xs text-slate-600 mt-1.5">Tap a day to view or log its details below.</p>
+      <p className="text-xs text-slate-600 mt-1.5">Tap any day, 1 through 75, to view or log it — no need to go in order. Handy if you're joining partway through.</p>
 
-      {!notStarted && <WeekSummary days={days} currentDay={currentDay} />}
-      {!notStarted && <DayLog player={player} color={color} currentDay={currentDay} selectedDay={selectedDay} onSelectDay={setSelectedDay} onSaveLog={onSaveLog} busy={busy} />}
+      <WeekSummary days={days} currentDay={currentDay} />
+      <DayLog player={player} color={color} currentDay={currentDay} selectedDay={selectedDay} onSelectDay={setSelectedDay} onSaveLog={onSaveLog} busy={busy} />
 
       <AchievementsGrid ctx={ctx} color={color} />
 
@@ -584,7 +613,7 @@ function DayLog({ player, color, currentDay, selectedDay, onSelectDay, onSaveLog
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs uppercase tracking-widest text-slate-500">Day log</div>
         <select value={selectedDay} onChange={(e) => onSelectDay(Number(e.target.value))} className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 outline-none">
-          {Array.from({ length: currentDay }, (_, i) => currentDay - i).map((d) => <option key={d} value={d}>Day {d}</option>)}
+          {Array.from({ length: TOTAL }, (_, i) => TOTAL - i).map((d) => <option key={d} value={d}>Day {d}{d === currentDay ? " (today)" : ""}</option>)}
         </select>
       </div>
 
