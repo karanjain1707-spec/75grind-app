@@ -282,7 +282,7 @@ function Onboarding({ players, onCreate, onClaim, offline }) {
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 outline-none focus:border-amber-400" />
           <label className="block">
             <span className="block text-xs uppercase tracking-widest text-slate-500 mb-1.5">Start date</span>
-            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 outline-none focus:border-slate-400" />
+            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="w-full min-w-0 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 outline-none focus:border-slate-400 text-base" />
           </label>
           <label className="block">
             <span className="block text-xs uppercase tracking-widest text-slate-500 mb-1.5">Your bonus habit (optional)</span>

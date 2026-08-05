@@ -16,6 +16,27 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       html, body, #root { background: #020617; min-height: 100vh; margin: 0; }
+
+      /* iOS Safari renders the native date/time value centered with its own
+         intrinsic width, which overflows custom-styled inputs (background,
+         border, rounded corners) on narrow screens. Force it to sit flush
+         left and shrink to fit instead of poking out of the box. */
+      input[type="date"],
+      input[type="time"] {
+        -webkit-appearance: none;
+        appearance: none;
+        min-width: 0;
+        box-sizing: border-box;
+      }
+      input[type="date"]::-webkit-date-and-time-value {
+        text-align: left;
+        min-width: 0;
+      }
+      input[type="date"]::-webkit-datetime-edit,
+      input[type="time"]::-webkit-datetime-edit {
+        max-width: 100%;
+        overflow: hidden;
+      }
     </style>
   </head>
   <body>
