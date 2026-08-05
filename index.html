@@ -37,6 +37,17 @@
         max-width: 100%;
         overflow: hidden;
       }
+
+      /* Confetti burst on day-complete celebration. */
+      @keyframes confetti-fall {
+        0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(220px) rotate(360deg); opacity: 0; }
+      }
+      .confetti-piece {
+        animation-name: confetti-fall;
+        animation-timing-function: ease-in;
+        animation-fill-mode: forwards;
+      }
     </style>
   </head>
   <body>

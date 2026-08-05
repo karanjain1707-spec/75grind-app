@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Flame, Dumbbell, Check, RotateCcw, Zap, Crown, Trophy, Droplet, Scale, Pencil, Users, LogOut, Shield, Swords, Gem, Sparkles, Lock } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Flame, Dumbbell, Check, RotateCcw, Zap, Crown, Trophy, Droplet, Scale, Pencil, Users, LogOut, Shield, Swords, Gem, Sparkles, Lock, ChevronDown, Target, Activity } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
 
 const ROSTER_KEY = "roster:v2";
@@ -72,14 +72,14 @@ function perfectWeeks(days) {
 const countTask = (days, key) => Object.values(days).filter((x) => x && x[key]).length;
 
 const ACHIEVEMENTS = [
-  { id: "first", label: "First Blood", desc: "Clear your first day", icon: Zap, test: (c) => c.cleared >= 1 },
-  { id: "week", label: "Week Warrior", desc: "7-day streak", icon: Flame, test: (c) => c.longest >= 7 },
-  { id: "fortnight", label: "Iron Will", desc: "14-day streak", icon: Shield, test: (c) => c.longest >= 14 },
-  { id: "flawless", label: "Flawless Week", desc: "One full 7-day week", icon: Sparkles, test: (c) => c.perfectWeeks >= 1 },
-  { id: "half", label: "Halfway Hero", desc: "38 days cleared", icon: Swords, test: (c) => c.cleared >= 38 },
-  { id: "lvl10", label: "Max Grinder", desc: "Reach level 10", icon: Gem, test: (c) => c.lvl >= 10 },
-  { id: "bookworm", label: "Side Quest", desc: "20 sessions of your bonus habit", icon: Sparkles, test: (c) => c.reading >= 20 },
-  { id: "finish", label: "75 Legend", desc: "All 75 days cleared", icon: Crown, test: (c) => c.cleared >= 75 },
+  { id: "first", label: "First Blood", desc: "Clear your first day", icon: Zap, test: (c) => c.cleared >= 1, goal: 1, value: (c) => c.cleared },
+  { id: "week", label: "Week Warrior", desc: "7-day streak", icon: Flame, test: (c) => c.longest >= 7, goal: 7, value: (c) => c.longest },
+  { id: "fortnight", label: "Iron Will", desc: "14-day streak", icon: Shield, test: (c) => c.longest >= 14, goal: 14, value: (c) => c.longest },
+  { id: "flawless", label: "Flawless Week", desc: "One full 7-day week", icon: Sparkles, test: (c) => c.perfectWeeks >= 1, goal: 1, value: (c) => c.perfectWeeks },
+  { id: "half", label: "Halfway Hero", desc: "38 days cleared", icon: Swords, test: (c) => c.cleared >= 38, goal: 38, value: (c) => c.cleared },
+  { id: "lvl10", label: "Max Grinder", desc: "Reach level 10", icon: Gem, test: (c) => c.lvl >= 10, goal: 10, value: (c) => c.lvl },
+  { id: "bookworm", label: "Side Quest", desc: "20 sessions of your bonus habit", icon: Sparkles, test: (c) => c.reading >= 20, goal: 20, value: (c) => c.reading },
+  { id: "finish", label: "75 Legend", desc: "All 75 days cleared", icon: Crown, test: (c) => c.cleared >= 75, goal: 75, value: (c) => c.cleared },
 ];
 function streakOf(days, currentDay) {
   let start = allDone(days[currentDay]) ? currentDay : currentDay - 1;
@@ -296,6 +296,69 @@ function Onboarding({ players, onCreate, onClaim, offline }) {
   );
 }
 
+function RingProgress({ pct, color, size = 44, stroke = 4, children }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="#1e293b" strokeWidth={stroke} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke={color.hex} strokeWidth={stroke} fill="none"
+          strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 0.6s ease" }} />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">{children}</div>
+    </div>
+  );
+}
+
+function DaySnapshot({ player, color, currentDay, streak }) {
+  const x = player.days[currentDay] || {};
+  const doneCount = REQUIRED.filter((t) => isTaskDone(x, t.key)).length;
+  const pct = (doneCount / REQUIRED.length) * 100;
+  const ml = x.water || 0;
+  const waterPct = Math.min(100, Math.round((ml / WATER_TARGET_ML) * 100));
+  const moodMeta = MOODS.find((m) => m.key === x.mood);
+  const left = REQUIRED.length - doneCount;
+
+  return (
+    <div className="flex items-center gap-3 mb-4 rounded-xl bg-slate-950/60 border border-slate-800 px-3 py-2.5">
+      <RingProgress pct={pct} color={color} size={40} stroke={4}>
+        <span className="text-[11px] font-black text-slate-100 tabular-nums">{doneCount}/{REQUIRED.length}</span>
+      </RingProgress>
+      <div className="text-xs min-w-0">
+        <div className="font-semibold text-slate-200">Day {currentDay} snapshot</div>
+        <div className="text-slate-500 truncate">{left === 0 ? "All required tasks done" : `${left} task${left > 1 ? "s" : ""} left today`}</div>
+      </div>
+      <div className="ml-auto flex items-center gap-3 shrink-0">
+        <span className="flex items-center gap-1 text-xs text-slate-400 tabular-nums"><Droplet size={13} className={waterPct >= 100 ? color.text : "text-slate-500"} />{waterPct}%</span>
+        {moodMeta && <span className="text-base" title={moodMeta.label}>{moodMeta.emoji}</span>}
+        <span className="flex items-center gap-1 text-orange-400"><Flame size={13} className={streak > 0 ? "" : "text-slate-600"} /><span className="text-xs font-bold tabular-nums">{streak}</span></span>
+      </div>
+    </div>
+  );
+}
+
+function Confetti() {
+  const pieces = useMemo(() => Array.from({ length: 18 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    delay: Math.random() * 0.3,
+    duration: 0.9 + Math.random() * 0.6,
+    color: ["#fbbf24", "#22d3ee", "#34d399", "#a78bfa", "#fb7185", "#38bdf8"][i % 6],
+    rotate: Math.random() * 360,
+  })), []);
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden z-20">
+      {pieces.map((p) => (
+        <span key={p.id} className="absolute top-0 w-1.5 h-3 rounded-sm confetti-piece"
+          style={{ left: `${p.left}%`, background: p.color, animationDelay: `${p.delay}s`, animationDuration: `${p.duration}s`, transform: `rotate(${p.rotate}deg)` }} />
+      ))}
+    </div>
+  );
+}
+
 function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog, busy }) {
   const { notStarted, complete, currentDay } = dayInfo(player.startDate);
   const days = player.days;
@@ -327,7 +390,9 @@ function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog
   }, [todayComplete]);
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 mb-5 relative overflow-hidden">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 mb-5 relative overflow-hidden shadow-2xl shadow-black/40 ring-1 ring-white/5">
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${color.from} ${color.to}`} />
+      {celebrate && <Confetti />}
       {levelUp && (
         <div className={`absolute inset-x-4 top-4 z-10 rounded-xl bg-gradient-to-r ${color.from} ${color.to} text-slate-950 px-4 py-2.5 flex items-center gap-2 font-bold text-sm shadow-lg animate-bounce`}>
           <Sparkles size={16} /> Level up! You hit Lvl {levelUp}
@@ -343,13 +408,19 @@ function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog
           <Trophy className="text-amber-400 shrink-0" size={22} /><span className="text-sm text-slate-200">75 days done. Restart below for another run.</span>
         </div>
       )}
+
+      {!notStarted && !complete && <DaySnapshot player={player} color={color} currentDay={currentDay} streak={streak} />}
+
       <div className="flex items-center justify-between mb-4">
         <div>
           <div className="font-bold text-slate-100 text-lg">{player.name}</div>
-          <div className={`text-xs font-medium ${color.text} flex items-center gap-1`}><RankIcon size={13} /> Lvl {lvl} · {rank.name} · {cleared}/{TOTAL} cleared</div>
+          <div className={`text-xs font-medium ${color.text} flex items-center gap-1.5`}>
+            <span className={`inline-flex items-center justify-center h-5 w-5 rounded-full ${color.dim}`}><RankIcon size={11} className={color.text} /></span>
+            Lvl {lvl} · {rank.name} · {cleared}/{TOTAL} cleared
+          </div>
         </div>
-        <div className="flex items-center gap-1 text-orange-400">
-          <Flame size={20} className={streak > 0 ? "" : "text-slate-600"} />
+        <div className={`flex items-center gap-1 text-orange-400 ${streak >= 7 ? "drop-shadow-[0_0_6px_rgba(251,146,60,0.6)]" : ""}`}>
+          <Flame size={streak >= 7 ? 24 : 20} className={streak > 0 ? "" : "text-slate-600"} />
           <span className={`font-black text-lg tabular-nums ${streak > 0 ? "text-orange-400" : "text-slate-600"}`}>{streak}</span>
         </div>
       </div>
@@ -421,6 +492,8 @@ function MyCard({ player, color, onToggle, onWaterChange, onSaveStats, onSaveLog
 
       <AchievementsGrid ctx={ctx} color={color} />
 
+      <LifetimeStats days={days} color={color} />
+
       <StatsBlock player={player} color={color} currentDay={currentDay} onSave={onSaveStats} busy={busy} />
     </div>
   );
@@ -437,6 +510,39 @@ function WeekSummary({ days, currentDay }) {
         {s.avgSteps !== null && <span>Avg {s.avgSteps.toLocaleString()} steps</span>}
         {s.avgCal !== null && <span>Avg {s.avgCal} cal</span>}
         {moodMeta && <span>Mostly {moodMeta.emoji} {moodMeta.label}</span>}
+      </div>
+    </div>
+  );
+}
+
+function WorkoutAccordion({ label, val, setter, color, inputCls }) {
+  const [open, setOpen] = useState(false);
+  const summary = val.type
+    ? [val.type, val.distance && `${val.distance}mi`, val.duration && `${val.duration}min`].filter(Boolean).join(" · ")
+    : "Not logged";
+  return (
+    <div className="mb-2 rounded-lg border border-slate-700 bg-slate-800/50 overflow-hidden">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-800 transition">
+        <span className="flex items-center gap-2 text-sm font-medium text-slate-200">
+          <Dumbbell size={14} className={val.type ? color.text : "text-slate-500"} /> {label}
+        </span>
+        <span className="flex items-center gap-2 text-xs text-slate-500 min-w-0">
+          <span className="truncate max-w-[8rem]">{summary}</span>
+          <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        </span>
+      </button>
+      <div className={`grid transition-all duration-300 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden">
+          <div className="grid grid-cols-2 gap-2 px-3 pb-3 pt-1">
+            <select value={val.type} onChange={(e) => setter({ ...val, type: e.target.value })} className={inputCls}>
+              <option value="">Type</option>
+              {WORKOUT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <input type="time" value={val.time} onChange={(e) => setter({ ...val, time: e.target.value })} className={inputCls} />
+            <input inputMode="decimal" value={val.distance} onChange={(e) => setter({ ...val, distance: e.target.value })} placeholder="Distance (mi)" className={inputCls} />
+            <input inputMode="numeric" value={val.duration} onChange={(e) => setter({ ...val, duration: e.target.value })} placeholder="Duration (min)" className={inputCls} />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -482,20 +588,10 @@ function DayLog({ player, color, currentDay, selectedDay, onSelectDay, onSaveLog
         </select>
       </div>
 
-      {[["Workout 1", w1, setW1], ["Workout 2", w2, setW2]].map(([label, val, setter], idx) => (
-        <div key={idx} className="mb-3">
-          <div className="text-xs text-slate-400 mb-1.5">{label}</div>
-          <div className="grid grid-cols-2 gap-2">
-            <select value={val.type} onChange={(e) => setter({ ...val, type: e.target.value })} className={inputCls}>
-              <option value="">Type</option>
-              {WORKOUT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input type="time" value={val.time} onChange={(e) => setter({ ...val, time: e.target.value })} className={inputCls} />
-            <input inputMode="decimal" value={val.distance} onChange={(e) => setter({ ...val, distance: e.target.value })} placeholder="Distance (mi)" className={inputCls} />
-            <input inputMode="numeric" value={val.duration} onChange={(e) => setter({ ...val, duration: e.target.value })} placeholder="Duration (min)" className={inputCls} />
-          </div>
-        </div>
-      ))}
+      <div className="mb-3">
+        <WorkoutAccordion label="Workout 1" val={w1} setter={setW1} color={color} inputCls={inputCls} />
+        <WorkoutAccordion label="Workout 2" val={w2} setter={setW2} color={color} inputCls={inputCls} />
+      </div>
 
       <div className="mb-3">
         <div className="text-xs text-slate-400 mb-1.5">How'd you feel</div>
@@ -535,6 +631,35 @@ function DayLog({ player, color, currentDay, selectedDay, onSelectDay, onSaveLog
   );
 }
 
+function NextAchievement({ ctx, color }) {
+  const locked = ACHIEVEMENTS.filter((a) => !a.test(ctx));
+  if (locked.length === 0) {
+    return (
+      <div className="mt-3 flex items-center gap-2 text-xs text-emerald-400">
+        <Crown size={14} /> All achievements unlocked. Legend status.
+      </div>
+    );
+  }
+  const withProgress = locked
+    .map((a) => {
+      const value = Math.min(a.value(ctx), a.goal);
+      return { ...a, value, pct: Math.round((value / a.goal) * 100) };
+    })
+    .sort((a, b) => b.pct - a.pct);
+  const next = withProgress[0];
+  return (
+    <div className="mt-3 rounded-xl bg-slate-800/60 border border-slate-700 px-3 py-2.5">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-300"><Target size={12} className={color.text} /> Next up: {next.label}</span>
+        <span className="text-[10px] text-slate-500 tabular-nums">{next.value}/{next.goal}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-slate-900 overflow-hidden">
+        <div className={`h-full rounded-full bg-gradient-to-r ${color.from} ${color.to} transition-all duration-500`} style={{ width: `${next.pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function AchievementsGrid({ ctx, color }) {
   const unlockedCount = ACHIEVEMENTS.filter((a) => a.test(ctx)).length;
   return (
@@ -548,9 +673,38 @@ function AchievementsGrid({ ctx, color }) {
           const unlocked = a.test(ctx);
           const Icon = unlocked ? a.icon : Lock;
           return (
-            <div key={a.id} title={`${a.label} — ${a.desc}`} className={`flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 border transition ${unlocked ? `${color.badge} ${color.border} text-slate-950` : "bg-slate-800 border-slate-700 text-slate-600"}`}>
+            <div key={a.id} title={`${a.label} — ${a.desc}`} className={`flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 border transition hover:scale-[1.03] ${unlocked ? `${color.badge} ${color.border} text-slate-950 shadow-md` : "bg-slate-800 border-slate-700 text-slate-600"}`}>
               <Icon size={18} />
               <span className={`text-[10px] font-semibold text-center leading-tight ${unlocked ? "text-slate-950" : "text-slate-600"}`}>{a.label}</span>
+            </div>
+          );
+        })}
+      </div>
+      <NextAchievement ctx={ctx} color={color} />
+    </div>
+  );
+}
+
+function LifetimeStats({ days, color }) {
+  const totalWorkouts = Object.values(days).reduce((n, x) => n + (x?.w1 ? 1 : 0) + (x?.w2 ? 1 : 0), 0);
+  const totalWaterL = Object.values(days).reduce((n, x) => n + (x?.water || 0), 0) / 1000;
+  const best = longestStreak(days);
+  const stats = [
+    { label: "Workouts logged", value: totalWorkouts, icon: Dumbbell },
+    { label: "Water logged", value: `${totalWaterL.toFixed(1)}L`, icon: Droplet },
+    { label: "Best streak", value: best, icon: Flame },
+  ];
+  return (
+    <div className="mt-5 pt-4 border-t border-slate-800">
+      <div className="text-xs uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-1.5"><Activity size={12} /> Lifetime stats</div>
+      <div className="grid grid-cols-3 gap-2">
+        {stats.map((s) => {
+          const Icon = s.icon;
+          return (
+            <div key={s.label} className="rounded-xl bg-slate-800/60 border border-slate-700 py-3 px-2 text-center">
+              <Icon size={16} className={`mx-auto mb-1 ${color.text}`} />
+              <div className="font-black text-slate-100 tabular-nums">{s.value}</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">{s.label}</div>
             </div>
           );
         })}
@@ -654,8 +808,10 @@ function Leaderboard({ players, meId }) {
     return { p, i, cleared, streak, lvl: levelOf(xpOf(p.days)) };
   }).sort((a, b) => b.cleared - a.cleared || b.streak - a.streak || a.p.name.localeCompare(b.p.name));
 
+  const MEDALS = ["text-amber-400", "text-slate-300", "text-orange-400"];
+
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl shadow-black/40 ring-1 ring-white/5">
       <div className="text-xs uppercase tracking-widest text-slate-500 mb-1 flex items-center gap-1.5"><Users size={12} /> Leaderboard</div>
       <p className="text-xs text-slate-600 mb-4">Cleared days, streak, and level only. Everyone's day log, mood, and weight stay on their own card.</p>
       <div className="space-y-2">
@@ -663,8 +819,8 @@ function Leaderboard({ players, meId }) {
           const c = colorFor(row.i);
           const isMe = row.p.id === meId;
           return (
-            <div key={row.p.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border ${isMe ? `${c.border} bg-slate-800` : "border-transparent bg-slate-800"}`}>
-              <span className="w-5 text-center font-black tabular-nums text-slate-500">{rank + 1}</span>
+            <div key={row.p.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition hover:-translate-y-0.5 hover:shadow-lg ${isMe ? `${c.border} bg-slate-800` : "border-transparent bg-slate-800"}`}>
+              <span className={`w-5 text-center font-black tabular-nums ${rank < 3 ? MEDALS[rank] : "text-slate-500"}`}>{rank + 1}</span>
               <span className={`inline-flex items-center justify-center h-8 w-8 rounded-full ${c.badge} text-slate-950 font-black text-sm shrink-0`}>{row.p.name.charAt(0).toUpperCase()}</span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
@@ -698,8 +854,10 @@ function RestartButton({ onConfirm }) {
 
 function Shell({ children }) {
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-slate-950 to-indigo-950 text-slate-100 flex items-center justify-center p-4 sm:p-6" style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
-      {children}
+    <div className="min-h-screen w-full bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950 text-slate-100 relative overflow-hidden flex items-center justify-center p-4 sm:p-6" style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
+      <div className="pointer-events-none absolute -top-32 -left-32 h-80 w-80 rounded-full bg-amber-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-32 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
+      <div className="relative z-10 w-full flex justify-center">{children}</div>
     </div>
   );
 }
